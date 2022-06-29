@@ -1,7 +1,7 @@
 global_frame: world
 origin: [0.0, 0.0, 0.0]  # [m]
-world_dimensions: [120.0, 120.0, 4.0]  # [m]  16   16   4
-resolution: 0.15  # [m]   0.15
+world_dimensions: [20.0, 20.0, 10.0]  # [m]  16   16   4
+resolution: 0.5  # [m]   0.15
 radius_drone: 1.0 # [m] This should be higher than the resolutions
 Ra: 4.0 # [m] radius of the first sphere (Sa) in the planner. The unknown pcloud published will only contain points inside this sphere
 z_ground: 0.1 #[m] points below z_ground are not published in the known grid
@@ -22,12 +22,12 @@ occupancy_grid:
   miss_inc: -0.01
   occupancy_threshold: 0.75  # [0.0, 1.0]
   publish_occupancy_grid: true
-  publish_unknown_grid: true
+  publish_unknown_grid: false
   clear_unknown_distance: 40.0  # [m]  #Nan ¿and inf? --> Clear the unkown voxels up to this distance
 
 distance_grid:
-  truncation_distance: 6  # [voxels]
-  publish_distance_grid: false
+  truncation_distance: 10  # [voxels]
+  publish_distance_grid: true
 
 cost_grid:
   publish_cost_grid: false

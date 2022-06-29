@@ -45,7 +45,9 @@ GlobalMapperRos::GlobalMapperRos()
   name_drone = ros::this_node::getNamespace();
   name_drone.erase(std::remove(name_drone.begin(), name_drone.end(), '/'), name_drone.end());  // remove slashes
 
-  // std::cout << "The name of the drone is: " << name_drone << std::endl;
+  name_drone = name_drone + "/base_link"; // simply to match the body frame (link) name given by the firefly_base.xacro file.
+
+  std::cout << "The name of the drone is: " << name_drone << std::endl;
 }
 
 void GlobalMapperRos::GetParams()
@@ -221,6 +223,7 @@ void GlobalMapperRos::PopulateOccupancyPointCloudMsg(const voxel_grid::VoxelGrid
           if (xyz[2] > params_.z_ground)  // only publish points above the ground
           {
             cloud.push_back(pcl::PointXYZ(xyz[0], xyz[1], xyz[2]));
+            // printf("%f\t", occupancy_value);
           }
         }
       }
@@ -283,17 +286,28 @@ void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<
       point.x = xyz[0];
       point.y = xyz[1];
       point.z = xyz[2];
-      point.r = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
-      point.g = 0;
-      point.b = 0;
-      point.a = 255;
+      if (cost < 7) {
+        point.r = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.g = 0; //static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.b = 0;
+        point.a = 255;
+      } else {
+        point.r = 0; //static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.g = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.b = 0;
+        point.a = 255;
+      }
+
       cloud.push_back(point);
+      // printf("%d\t", point.g);
     }
   }
 
+  // distance_grid.PrintValues();
+
   pcl::toROSMsg(cloud, *pointcloud);
   pointcloud->header.frame_id = "world";
-  pointcloud->header.stamp = ros::Time::now();
+  pointcloud->header.stamp = tstampLastPclFused_; // ros::Time::now();
 }
 
 void GlobalMapperRos::PopulateCostPointCloudMsg(const voxel_grid::VoxelGrid<int>& cost_grid,
@@ -494,7 +508,7 @@ void GlobalMapperRos::LidarCallback(const sensor_msgs::PointCloud2ConstPtr& lida
   if(lidar_ptr->is_dense)
   {
     ROS_INFO("Mapper:: Lidar pointcloud received");
-    std::cout << PCL_VERSION << std::endl;
+    // std::cout << PCL_VERSION << std::endl;
   }
 
   //std::cout << lidar_ptr->width << std::endl;

@@ -1,7 +1,7 @@
 <launch>
 
   <!-- name of the quad -->
-  <arg name="quad" default="SQ01s"/>
+  <arg name="quad" default="firefly"/>
 
   <arg name="load_params" default="true" />
   <arg name="param_file" default="global_mapper.yaml" />
@@ -51,8 +51,8 @@
       <remap from="~sparse_path_topic" to="$(arg sparse_path_topic)" />
   </node>
   
-  <group if="$(arg gazebo)">
+  <!-- <group if="$(arg gazebo)">
 	<node pkg="rviz" type="rviz" name="rviz" required="true"
-          args="-d $(find global_mapper_ros)/rviz/mapperMIT.rviz -f /world"/>
-  </group>
+          args="-d $(find global_mapper_ros)/rviz/mapperMIT.rviz -f /world"/> 
+  </group> -->
 </launch>
