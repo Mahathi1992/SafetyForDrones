@@ -271,6 +271,11 @@ void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<
   double xyz[3] = { transform(0), transform(1), transform(2) };
   int slice_ixyz[3];
   distance_grid.WorldToGrid(xyz, slice_ixyz);
+  // std::cout << "world transform " << transform(0) << "," << transform(1) << "," << transform(2) << std::endl;
+  // std::cout << "Grid coordinates" << slice_ixyz[0] << "," << slice_ixyz[1] << "," << slice_ixyz[2] << std::endl;
+
+  // NOTE! change grid dimensions in the below for loop to center around slice_ixyz[0] and slice_ixyz[1]
+  // which is the x-y position of the quadrotor, which makes the grid move with the quadrotor
 
   pcl::PointCloud<pcl::PointXYZRGBA> cloud;
 
@@ -288,11 +293,11 @@ void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<
       point.z = xyz[2];
       if (cost < 7) {
         point.r = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
-        point.g = 0; //static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.g = 0;
         point.b = 0;
         point.a = 255;
       } else {
-        point.r = 0; //static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
+        point.r = 0;
         point.g = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
         point.b = 0;
         point.a = 255;
