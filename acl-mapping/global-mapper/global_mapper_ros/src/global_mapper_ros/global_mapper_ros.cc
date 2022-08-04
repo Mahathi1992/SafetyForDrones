@@ -194,7 +194,7 @@ void GlobalMapperRos::PopulateUnknownPointCloudMsg(const voxel_grid::VoxelGrid<f
   pointcloud->header.stamp = tstampLastPclFused_;
 }
 
-void GlobalMapperRos::PopulateOccupancyPointCloudMsg(const voxel_grid::VoxelGrid<float>& occupancy_grid,
+void GlobalMapperRos::PopulateOccupancyPointCloudMsg(voxel_grid::VoxelGrid<float>& occupancy_grid,
                                                      sensor_msgs::PointCloud2* pointcloud)
 {
   // check for bad input
@@ -203,8 +203,34 @@ void GlobalMapperRos::PopulateOccupancyPointCloudMsg(const voxel_grid::VoxelGrid
     return;
   }
 
+  geometry_msgs::TransformStamped transform_stamped;
+  Eigen::Vector3d transform;
+
+  try
+  {
+    transform_stamped = tf_buffer_.lookupTransform("world", name_drone, ros::Time(0), ros::Duration(0.02));
+    transform(0) = transform_stamped.transform.translation.x;
+    transform(1) = transform_stamped.transform.translation.y;
+    transform(2) = transform_stamped.transform.translation.z;
+  }
+  catch (tf2::TransformException& ex)
+  {
+    ROS_WARN("[world_database_master_ros] OnGetTransform failed with %s", ex.what());
+
+    transform(0) = std::numeric_limits<double>::quiet_NaN();
+    transform(1) = std::numeric_limits<double>::quiet_NaN();
+    transform(2) = std::numeric_limits<double>::quiet_NaN();
+  }
+
   int grid_dimensions[3];
   occupancy_grid.GetGridDimensions(grid_dimensions);
+
+  //double xyz[3] = { transform(0), transform(1), transform(2) };
+  const double x_orig = transform(0);
+  const double y_orig = transform(1);
+  const double z_orig = transform(2);
+  std::vector<int> newOrigin;
+  newOrigin = occupancy_grid.UpdateOrigin(x_orig,y_orig,z_orig);
 
   double xyz[3] = { 0.0 };
   pcl::PointCloud<pcl::PointXYZ> cloud;
@@ -237,7 +263,7 @@ void GlobalMapperRos::PopulateOccupancyPointCloudMsg(const voxel_grid::VoxelGrid
   pointcloud->header.stamp = tstampLastPclFused_;
 }
 
-void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<int>& distance_grid,
+void GlobalMapperRos::PopulateDistancePointCloudMsg(voxel_grid::VoxelGrid<int>& distance_grid,
                                                     sensor_msgs::PointCloud2* pointcloud)
 {
   // check for bad input
@@ -269,6 +295,12 @@ void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<
   distance_grid.GetGridDimensions(grid_dimensions);
 
   double xyz[3] = { transform(0), transform(1), transform(2) };
+  global_mapper_ptr_->UpdateOrigin(xyz);
+  const double x_orig = transform(0);
+  const double y_orig = transform(1);
+  const double z_orig = transform(2);
+  std::vector<int> newOrigin;
+  newOrigin = distance_grid.UpdateOrigin(x_orig,y_orig,z_orig);
   int slice_ixyz[3];
   distance_grid.WorldToGrid(xyz, slice_ixyz);
   // std::cout << "world transform " << transform(0) << "," << transform(1) << "," << transform(2) << std::endl;
@@ -285,13 +317,14 @@ void GlobalMapperRos::PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<
     for (int y = 0; y < grid_dimensions[1]; y++)
     {
       int ixyz[3] = { x, y, slice_ixyz[2] };
+      // int ixyz[3] = { x, y, slice_ixyz[2] };
       distance_grid.GridToWorld(ixyz, xyz);
       int cost = distance_grid.ReadValue(xyz);
       pcl::PointXYZRGBA point;
       point.x = xyz[0];
       point.y = xyz[1];
       point.z = xyz[2];
-      if (cost < 7) {
+      if (cost < 3) {
         point.r = static_cast<uint8_t>((max_dist - cost) / max_dist * 255);
         point.g = 0;
         point.b = 0;

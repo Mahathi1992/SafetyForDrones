@@ -40,9 +40,9 @@ private:
   void InitPublishers();
   void PopulateUnknownPointCloudMsg(const voxel_grid::VoxelGrid<float>& occupancy_grid,
                                     sensor_msgs::PointCloud2* pointcloud);
-  void PopulateOccupancyPointCloudMsg(const voxel_grid::VoxelGrid<float>& occupancy_grid,
+  void PopulateOccupancyPointCloudMsg(voxel_grid::VoxelGrid<float>& occupancy_grid,
                                       sensor_msgs::PointCloud2* pointcloud);
-  void PopulateDistancePointCloudMsg(const voxel_grid::VoxelGrid<int>& distance_grid,
+  void PopulateDistancePointCloudMsg(voxel_grid::VoxelGrid<int>& distance_grid,
                                      sensor_msgs::PointCloud2* pointcloud);
   void PopulateCostPointCloudMsg(const voxel_grid::VoxelGrid<int>& cost_grid, sensor_msgs::PointCloud2* pointcloud);
   void PopulatePathMsg(const std::vector<std::array<double, 3>>& path, nav_msgs::Path* path_msg);
