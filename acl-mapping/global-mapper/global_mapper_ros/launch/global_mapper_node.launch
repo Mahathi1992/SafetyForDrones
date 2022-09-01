@@ -51,6 +51,8 @@
       <remap from="~sparse_path_topic" to="$(arg sparse_path_topic)" />
   </node>
   
+  <!-- UNCOMMENT the following lines for testing global mapper without Moveit! -->
+  
   <!-- <group if="$(arg gazebo)">
 	<node pkg="rviz" type="rviz" name="rviz" required="true"
           args="-d $(find global_mapper_ros)/rviz/mapperMIT.rviz -f /world"/> 

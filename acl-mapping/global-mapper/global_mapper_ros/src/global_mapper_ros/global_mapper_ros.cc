@@ -225,12 +225,13 @@ void GlobalMapperRos::PopulateOccupancyPointCloudMsg(voxel_grid::VoxelGrid<float
   int grid_dimensions[3];
   occupancy_grid.GetGridDimensions(grid_dimensions);
 
-  //double xyz[3] = { transform(0), transform(1), transform(2) };
+  double xyz_orig[3] = { transform(0), transform(1), transform(2) };
   const double x_orig = transform(0);
   const double y_orig = transform(1);
   const double z_orig = transform(2);
   std::vector<int> newOrigin;
   newOrigin = occupancy_grid.UpdateOrigin(x_orig,y_orig,z_orig);
+  global_mapper_ptr_->UpdateOrigin(xyz_orig);
 
   double xyz[3] = { 0.0 };
   pcl::PointCloud<pcl::PointXYZ> cloud;
@@ -543,11 +544,11 @@ void GlobalMapperRos::Publish(const ros::TimerEvent& event)
 // Lidar callback for velodyne vlp16
 void GlobalMapperRos::LidarCallback(const sensor_msgs::PointCloud2ConstPtr& lidar_ptr)
 {
-  if(lidar_ptr->is_dense)
-  {
-    ROS_INFO("Mapper:: Lidar pointcloud received");
-    // std::cout << PCL_VERSION << std::endl;
-  }
+  // if(lidar_ptr->is_dense)
+  // {
+  //   ROS_INFO("Mapper:: Lidar pointcloud received");
+  //   // std::cout << PCL_VERSION << std::endl;
+  // }
 
   //std::cout << lidar_ptr->width << std::endl;
   if (!got_lidar_points_)
