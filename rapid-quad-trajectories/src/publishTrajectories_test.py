@@ -14,6 +14,7 @@ import math
 from geometry_msgs.msg import Pose, Twist
 # import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2, PointField, Imu
+import sensor_msgs.point_cloud2 as pc2
 from nav_msgs.msg import Odometry
 from gazebo_msgs.msg import ModelState
 from moveit_msgs.msg import MotionPlanRequest
@@ -42,6 +43,9 @@ from time import time
 quad_pos = None
 quad_vel = None
 quad_acc = None
+posf = None
+velf = [0,0,0]
+accf = [0,0,0]
 des_traj_moveit = None
 final_goal_pos = Pose()
 # octomap = Octomap()
@@ -76,19 +80,65 @@ def AccelCB(self):
 ### Get final goal and desired global piece-wise linear path
 
 def GlobalDesTrajCB(self):
-    jointName = self.trajectory[0].multi_dof_joint_trajectory.joint_names[0]
+    # jointName = self.trajectory[0].multi_dof_joint_trajectory.joint_names[0]
     # print("RapidTrajectory node is running and JOINT name is: ", jointName)
 
-def FinalGoalCB(self):
+    points_array = self.trajectory[0].multi_dof_joint_trajectory.points
+    # print("SIZE OF TRAJ IS ", len(self.trajectory[0].multi_dof_joint_trajectory.points))
+    # global posf
+    global final_goal_pos
+    k=0
+    timer = rospy.get_time()
+    timeNow = timer
+    traj_size = len(self.trajectory[0].multi_dof_joint_trajectory.points)
+    while k<traj_size:
+        final_goal_pos.position.x = float(self.trajectory[0].multi_dof_joint_trajectory.points[k].transforms[0].translation.x)
+        final_goal_pos.position.y = float(self.trajectory[0].multi_dof_joint_trajectory.points[k].transforms[0].translation.y)
+        final_goal_pos.position.z = float(self.trajectory[0].multi_dof_joint_trajectory.points[k].transforms[0].translation.z)
+        x_dist_squared = (quad_pos.x - final_goal_pos.position.x)*(quad_pos.x - final_goal_pos.position.x)
+        y_dist_squared = (quad_pos.y - final_goal_pos.position.y)*(quad_pos.y - final_goal_pos.position.y)
+        # z_dist_squared = (quad_pos.z - final_goal_pos.position.z)*(quad_pos.z - final_goal_pos.position.z)
+        # print(type(x_des), type(y_des), type(z_des))
+        dist_to_k_xy = math.sqrt(x_dist_squared + y_dist_squared)
+        dist_to_k_z = abs(quad_pos.z - final_goal_pos.position.z)
 
+        if (traj_size > 2):
+            if (k < (traj_size - 2)):
+                x_sign = (final_goal_pos.position.x - quad_pos.x)/abs(final_goal_pos.position.x - quad_pos.x)
+                y_sign = (final_goal_pos.position.y - quad_pos.y)/abs(final_goal_pos.position.y - quad_pos.y)
+                z_sign = (final_goal_pos.position.z - quad_pos.z)/abs(final_goal_pos.position.z - quad_pos.z)
+                vmax = 5
+                velf = [x_sign*vmax, y_sign*vmax, z_sign*vmax]
+                accf = [0, 0, 0]
+            else:
+                velf = [0, 0, 0]
+                accf = [0, 0, 0]
+        else:
+            velf = [0, 0, 0]
+            accf = [0, 0, 0]
+
+        increment = rospy.Duration.from_sec(10)
+        increment_10 = rospy.Duration.from_sec(10000000)
+        increment_10sec = increment_10.to_sec()
+        increment_sec = increment.to_sec()
+        timer += increment_sec
+        if ((dist_to_k_xy < 0.7 and dist_to_k_z < 0.5) or timer > timeNow + increment_10sec):
+            timer = timeNow
+            # print(k, timer, timeNow)
+            k += 1 #Add timeout and distance to final goal based conditions to increment
+
+def FinalGoalCB(self):
+    global x_des_final
+    global y_des_final
+    global z_des_final
     x_des_final = self.goal_constraints[0].joint_constraints[0].position
     y_des_final = self.goal_constraints[0].joint_constraints[1].position
     z_des_final = self.goal_constraints[0].joint_constraints[2].position
 
-    global final_goal_pos
-    final_goal_pos.position.x = x_des_final
-    final_goal_pos.position.y = y_des_final
-    final_goal_pos.position.z = z_des_final
+    # global final_goal_pos
+    # final_goal_pos.position.x = x_des_final
+    # final_goal_pos.position.y = y_des_final
+    # final_goal_pos.position.z = z_des_final
 
     # print(final_goal_pos)
 
@@ -106,24 +156,28 @@ def DistanceGridCB(self):
     global pcl_data_global
     pcl_data_global = pointcloud2pcl.ros_to_pcl(self)
 
-def PointCloudCB(self):
-
+def OccPointCloudCB(self):
+    # pc = ros_numpy.numpify(self)
+    # points=np.zeros((pc.shape[0],3))
+    # points[:,0]=pc['x']
+    # points[:,1]=pc['y']
+    # points[:,2]=pc['z']
+    # pcl_pointcloud = pcl.PointCloud(np.array(points, dtype=np.float32))
+    #
+    # kdtree = pcl_pointcloud.make_kdtree_flann()
+    # points_2 = np.array([[0, 0, 0]], dtype=np.float32)
+    # pc_2 = pcl.PointCloud()
+    # pc_2.from_array(points_2)
+    #
+    # indices, sqr_distances = kdtree.nearest_k_search_for_cloud(pc_2, 50)
+    # print(indices, sqr_distances)
     pc = ros_numpy.numpify(self)
     points=np.zeros((pc.shape[0],3))
     points[:,0]=pc['x']
     points[:,1]=pc['y']
     points[:,2]=pc['z']
-    pcl_pointcloud = pcl.PointCloud(np.array(points, dtype=np.float32))
-
-    kdtree = pcl_pointcloud.make_kdtree_flann()
-
-    # points_2 = np.array([[quad_pos.x, quad_pos.y, quad_pos.z]], dtype=np.float32)
-    points_2 = np.array([[0, 0, 0]], dtype=np.float32)
-    pc_2 = pcl.PointCloud()
-    pc_2.from_array(points_2)
-
-    indices, sqr_distances = kdtree.nearest_k_search_for_cloud(pc_2, 50)
-    # print(indices, sqr_distances)
+    pcl_data_occupancy = pcl.PointCloud(np.array(points, dtype=np.float32))
+    # print(pcl_data_occupancy[300])
 
     # Define the duration:
     Tf = 1
@@ -152,18 +206,6 @@ def PointCloudCB(self):
     sign_y = (posf[1]-pos0[1])/abs(posf[1]-pos0[1])
     sign_z = (posf[2]-pos0[2])/abs(posf[2]-pos0[2])
 
-
-    if dist_to_goal > 0.5:
-        # Define the goal state:
-        velf = [-sign_x*0*vmax, -sign_y*0*vmax, -sign_z*0*vmax]  # velocity
-        accf = [0, 0, 0]  # acceleration
-    else:
-        # Define the goal state:
-        velf = [0, 0, 0]  # velocity
-        accf = [0, 0, 0]  # acceleration
-
-    # print("state is: ", pos0)
-
     dist_Tf_x = vel0[0] * Tf + (0.5 * Tf * Tf * acc0[0])
     dist_Tf_y = vel0[1] * Tf + (0.5 * Tf * Tf * acc0[1])
     dist_Tf_z = vel0[2] * Tf + (0.5 * Tf * Tf * acc0[2])
@@ -179,12 +221,12 @@ def PointCloudCB(self):
     iter_y = pos0[1] - dist_Tf_max_xy
     iter_z = pos0[2] - dist_Tf_max_xy
 
-    obst_cost_array = []
-    obst_cost_array_x = []
-    obst_cost_array_y = []
+    obst_cost_array = [0]
+    # obst_cost_array_x = []
+    # obst_cost_array_y = []
     cost_array = []
-    cost_array_x = []
-    cost_array_y = []
+    # cost_array_x = []
+    # cost_array_y = []
     x_array = []
     y_array = []
     dist_max_local_var = vmax * Tf + (0.5 * Tf * Tf * fmax) # compute max distance travel possible for given vmax, fmax
@@ -241,23 +283,23 @@ def PointCloudCB(self):
             cost_obst_y = 0
             total_cost = 0
 
-            for data in pcl_data_global:
+            for data in pcl_data_occupancy:
                 x_grid = data[0]
                 y_grid = data[1]
                 z_grid = data[2]
-                a_rgb = data[3] # PCL stores32-bit color as ARGB order (according to pcl documentation)
-                int_rgb = unpack('I', pack('f', a_rgb))[0]
 
-                global red
-                global green
+                # a_rgb = data[3] # PCL stores32-bit color as ARGB order (according to pcl documentation)
+                # int_rgb = unpack('I', pack('f', a_rgb))[0]
+
                 # blue = (int_rgb & 0xff000000) >> 24 # NO idea which bits are blue and which are for alpha
-                red = (int_rgb & 0x0000ff00) >> 8 # however, red seems to be stored from bit 8 to 15
-                green = (int_rgb & 0x000000ff) # green seems to be stored from bit 0 to 7
+                # red = (int_rgb & 0x0000ff00) >> 8 # however, red seems to be stored from bit 8 to 15
+                # green = (int_rgb & 0x000000ff) # green seems to be stored from bit 0 to 7
 
                 dist_to_quad_x = (x_grid - pos0[0])
                 dist_to_quad_y = (y_grid - pos0[1])
                 dist_to_obst = math.sqrt((dist_to_quad_x*dist_to_quad_x + dist_to_quad_y*dist_to_quad_y))
-                if red > 200 and dist_to_obst < 10:
+                # if red > 200 and dist_to_obst < 10:
+                if dist_to_obst < 50:
                     time_t = Tf
                     while time_t <= Tf:
                         t_sq = math.pow(time_t,2)
@@ -270,11 +312,11 @@ def PointCloudCB(self):
 
                         x_diff = abs(x_grid - x_collision_check)
                         y_diff = abs(y_grid - y_collision_check)
-                        cost_obst += (0/dist_to_obst) + (0.01*(math.sqrt(vel0[0]*vel0[0] + vel0[1]*vel0[1]))/(x_diff*x_diff + y_diff*y_diff))
-                        cost_obst_x += 0.2*abs(vel0[0])/x_diff
-                        cost_obst_y += 0.2*abs(vel0[1])/y_diff
-                        obst_cost_array_x.append(cost_obst_x)
-                        obst_cost_array_y.append(cost_obst_y)
+                        cost_obst += (0/dist_to_obst) + (0.05*(math.sqrt(vel0[0]*vel0[0] + vel0[1]*vel0[1]))/(x_diff*x_diff + y_diff*y_diff))
+                        # cost_obst_x += 0.2*abs(vel0[0])/x_diff
+                        # cost_obst_y += 0.2*abs(vel0[1])/y_diff
+                        # obst_cost_array_x.append(cost_obst_x)
+                        # obst_cost_array_y.append(cost_obst_y)
                         obst_cost_array.append(cost_obst)
                         time_t += time_int_res
                     # obst_cost_array.append(cost_obst)
@@ -282,16 +324,19 @@ def PointCloudCB(self):
                     # cost_obst = 10000*(math.sqrt(vel0[0]*vel0[0] + vel0[1]*vel0[1]))/dist_to_obst
                     # print("obst cost is: ", cost_obst, "x_grid: ", x_grid, "y_grid: ", y_grid)
                 else:
+                    obst_cost_array.append(0)
                     continue
 
             cost_goal = math.sqrt((iter_x - posf[0]) * (iter_x - posf[0]) + (iter_y - posf[1])*(iter_y - posf[1]))
-            total_cost_x = 1*(abs(iter_x - posf[0])) + 1.0*max(obst_cost_array_x)
-            total_cost_y = 1*(abs(iter_y - posf[1])) + 1.0*max(obst_cost_array_y)
+            # total_cost_x = 1*(abs(iter_x - posf[0])) #+ 1.0*max(obst_cost_array_x)
+            # total_cost_y = 1*(abs(iter_y - posf[1])) #+ 1.0*max(obst_cost_array_y)
+
             # total_cost = 0.050*(abs(iter_x - posf[0])) + 0.05*(abs(iter_y - posf[1])) + 1.0*max(obst_cost_array)
-            total_cost = 0.05*cost_goal + max(obst_cost_array)
+            total_cost = 0.75*cost_goal + 0.95*max(obst_cost_array) # set weights to 0.5, 1.5 for good obstacle avoidance
             cost_array.append(total_cost)
-            cost_array_x.append(total_cost_x)
-            cost_array_y.append(total_cost_y)
+
+            # cost_array_x.append(total_cost_x)
+            # cost_array_y.append(total_cost_y)
             # print("total cost : ", total_cost)
             x_array.append(iter_x)
             y_array.append(iter_y)
@@ -316,17 +361,6 @@ def PointCloudCB(self):
         index_min_cost = cost_array.index(min_cost)
         x_min_cost = x_array[index_min_cost]
         y_min_cost = y_array[index_min_cost]
-
-####### TEMP
-        # min_cost_x = min(cost_array_x)
-        # index_min_cost_x = cost_array_x.index(min_cost_x)
-        # x_min_cost = x_array[index_min_cost_x]
-        #
-        # min_cost_y = min(cost_array_y)
-        # index_min_cost_y = cost_array_y.index(min_cost_y)
-        # y_min_cost = y_array[index_min_cost_y]
-
-######
 
         # print("******** INDEX MIN COST, MIN COST  ********", index_min_cost, min_cost)
         #generate minimum cost trajectory and publish
@@ -479,10 +513,10 @@ def PointCloudCB(self):
         x_array.clear()
         y_array.clear()
         obst_cost_array.clear()
-        obst_cost_array_x.clear()
-        obst_cost_array_y.clear()
-        cost_array_x.clear()
-        cost_array_y.clear()
+        # obst_cost_array_x.clear()
+        # obst_cost_array_y.clear()
+        # cost_array_x.clear()
+        # cost_array_y.clear()
 
 name = rospy.get_namespace() # has namespace with '/' at beginning and end of the name
 #pubGoal = rospy.Publisher(name+'goal', Goal, queue_size=10)
@@ -500,7 +534,7 @@ def startNode():
     rospy.Subscriber("move_group/display_planned_path", DisplayTrajectory, GlobalDesTrajCB)
     # rospy.Subscriber("move_group/monitored_planning_scene", PlanningScene, OctoMapCB)
     rospy.Subscriber("global_mapper_ros/distance_grid", PointCloud2, DistanceGridCB)
-    rospy.Subscriber("vlp16/velodyne/points", PointCloud2, PointCloudCB)
+    rospy.Subscriber("global_mapper_ros/occupancy_grid", PointCloud2, OccPointCloudCB)
 
     # global traj_pub
     # # traj_pub = rospy.Publisher("command/trajectory", MultiDOFJointTrajectory, queue_size=1)
